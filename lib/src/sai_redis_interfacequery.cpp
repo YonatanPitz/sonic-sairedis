@@ -244,7 +244,7 @@ sai_status_t sai_api_query(
         API_CASE(VIRTUAL_ROUTER,virtual_router);
         API_CASE(VLAN,vlan);
         API_CASE(WRED,wred);
-
+        API_CASE(BMTOR,bmtor);
         default:
             SWSS_LOG_ERROR("Invalid API type %d", sai_api_id);
             return SAI_STATUS_INVALID_PARAMETER;

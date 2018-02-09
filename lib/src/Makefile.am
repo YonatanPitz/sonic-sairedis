@@ -37,6 +37,7 @@ libsairedis_la_SOURCES = \
 			 sai_redis_udf.cpp \
 			 sai_redis_vlan.cpp \
 			 sai_redis_wred.cpp \
+			 sai_redis_bmtor.cpp \
 			 sai_redis_generic_create.cpp \
 			 sai_redis_generic_remove.cpp \
 			 sai_redis_generic_set.cpp \
