@@ -720,6 +720,14 @@ std::string sai_serialize_queue_stat(
     return sai_serialize_enum(counter, &sai_metadata_enum_sai_queue_stat_t);
 }
 
+std::string sai_serialize_bmtor_stat(
+        _In_ const sai_bmtor_stat_t counter)
+{
+    SWSS_LOG_ENTER();
+
+    return sai_serialize_enum(counter, &sai_metadata_enum_sai_bmtor_stat_t);
+}
+
 std::string sai_serialize_ingress_priority_group_stat(
         _In_ const sai_ingress_priority_group_stat_t counter)
 {
@@ -2822,6 +2830,15 @@ void sai_deserialize_queue_stat(
     SWSS_LOG_ENTER();
 
     sai_deserialize_enum(s, &sai_metadata_enum_sai_queue_stat_t, (int32_t&)stat);
+}
+
+void sai_deserialize_bmtor_stat(
+        _In_ const std::string& s,
+        _Out_ sai_bmtor_stat_t& stat)
+{
+    SWSS_LOG_ENTER();
+
+    sai_deserialize_enum(s, &sai_metadata_enum_sai_bmtor_stat_t, (int32_t&)stat);
 }
 
 void sai_deserialize_ingress_priority_group_stat(
