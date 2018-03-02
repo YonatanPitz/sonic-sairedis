@@ -45,7 +45,7 @@ tests_SOURCES = \
 				syncd_flex_counter.cpp
 
 tests_CPPFLAGS = $(DBGFLAGS) $(AM_CPPFLAGS) $(CFLAGS_COMMON)
-tests_LDADD = -lhiredis -lswsscommon -lpthread -L$(top_srcdir)/lib/src/.libs -lsairedis -L$(top_srcdir)/meta/.libs -lsaimetadata -lsaimeta
+tests_LDADD = -lhiredis -lswsscommon -lpthread -L$(top_srcdir)/lib/src/.libs -lsairedis -L$(top_srcdir)/meta/.libs -lsaimetadata -lsaimeta -lsai #TODO: remove sai (added for sai_ext_init)
 
 if RTEST
 TESTS = tests
