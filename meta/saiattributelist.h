@@ -3,13 +3,14 @@
 
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 #include <hiredis/hiredis.h>
 #include "swss/dbconnector.h"
 #include "swss/table.h"
 #include "swss/logger.h"
 #include "sai.h"
-#include "saiserialize.h"
+#include "sai_serialize.h"
 #include "string.h"
 
 class SaiAttributeList
@@ -19,6 +20,11 @@ class SaiAttributeList
         SaiAttributeList(
                 _In_ const sai_object_type_t object_type,
                 _In_ const std::vector<swss::FieldValueTuple> &values,
+                _In_ bool countOnly);
+
+        SaiAttributeList(
+                _In_ const sai_object_type_t object_type,
+                _In_ const std::unordered_map<std::string, std::string>& hash,
                 _In_ bool countOnly);
 
         ~SaiAttributeList();

@@ -22,4 +22,4 @@ vssyncd_SOURCES = \
 vssyncd_CPPFLAGS = $(DBGFLAGS) $(AM_CPPFLAGS) $(CFLAGS_COMMON) $(SAIFLAGS)
 vssyncd_LDADD = -lhiredis -lswsscommon $(SAILIB) -lpthread -L$(top_srcdir)/meta/.libs -lsaimetadata -lsaimeta -ldl -lsai # TODO remove - hack for bmtor
 
-TESTS = mlnx.pl brcm.pl
+TESTS = mlnx.pl brcm.pl swsslogentercheck.sh

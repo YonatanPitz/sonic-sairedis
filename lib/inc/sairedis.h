@@ -7,6 +7,7 @@ extern "C" {
 
 #define SYNCD_INIT_VIEW  "INIT_VIEW"
 #define SYNCD_APPLY_VIEW "APPLY_VIEW"
+#define SYNCD_INSPECT_ASIC "SYNCD_INSPECT_ASIC"
 #define ASIC_STATE_TABLE "ASIC_STATE"
 #define TEMP_PREFIX      "TEMP_"
 
@@ -14,7 +15,9 @@ typedef enum _sai_redis_notify_syncd_t
 {
     SAI_REDIS_NOTIFY_SYNCD_INIT_VIEW,
 
-    SAI_REDIS_NOTIFY_SYNCD_APPLY_VIEW
+    SAI_REDIS_NOTIFY_SYNCD_APPLY_VIEW,
+
+    SAI_REDIS_NOTIFY_SYNCD_INSPECT_ASIC
 
 } sai_redis_notify_syncd_t;
 
@@ -133,7 +136,7 @@ typedef enum _sai_redis_switch_attr_t
  * @param[in] attr_count List of attr_count. Caller passes the number
  *    of attribute for each object to create.
  * @param[in] attr_list List of attributes for every object.
- * @param[in] type Bulk operation type.
+ * @param[in] mode Bulk operation error handling mode
  * @param[out] object_statuses List of status for every object. Caller needs to
  * allocate the buffer
  *
@@ -147,7 +150,7 @@ sai_status_t sai_bulk_create_route_entry(
         _In_ const sai_route_entry_t *route_entry,
         _In_ const uint32_t *attr_count,
         _In_ const sai_attribute_t *const *attr_list,
-        _In_ sai_bulk_op_type_t type,
+        _In_ sai_bulk_op_error_mode_t mode,
         _Out_ sai_status_t *object_statuses);
 
 /**
@@ -155,7 +158,7 @@ sai_status_t sai_bulk_create_route_entry(
  *
  * @param[in] object_count Number of objects to remove
  * @param[in] route_entry List of objects to remove
- * @param[in] type Bulk operation type.
+ * @param[in] mode Bulk operation error handling mode
  * @param[out] object_statuses List of status for every object. Caller needs to
  * allocate the buffer
  *
@@ -167,7 +170,7 @@ sai_status_t sai_bulk_create_route_entry(
 sai_status_t sai_bulk_remove_route_entry(
         _In_ uint32_t object_count,
         _In_ const sai_route_entry_t *route_entry,
-        _In_ sai_bulk_op_type_t type,
+        _In_ sai_bulk_op_error_mode_t mode,
         _Out_ sai_status_t *object_statuses);
 
 /**
@@ -176,7 +179,7 @@ sai_status_t sai_bulk_remove_route_entry(
  * @param[in] object_count Number of objects to set attribute
  * @param[in] route_entry List of objects to set attribute
  * @param[in] attr_list List of attributes to set on objects, one attribute per object
- * @param[in] type Bulk operation type.
+ * @param[in] mode Bulk operation error handling mode
  * @param[out] object_statuses List of status for every object. Caller needs to
  * allocate the buffer
  *
@@ -189,7 +192,7 @@ sai_status_t sai_bulk_set_route_entry_attribute(
         _In_ uint32_t object_count,
         _In_ const sai_route_entry_t *route_entry,
         _In_ const sai_attribute_t *attr_list,
-        _In_ sai_bulk_op_type_t type,
+        _In_ sai_bulk_op_error_mode_t mode,
         _Out_ sai_status_t *object_statuses);
 
 /**
@@ -200,7 +203,7 @@ sai_status_t sai_bulk_set_route_entry_attribute(
  * @param[in] attr_count List of attr_count. Caller passes the number
  *    of attribute for each object to get
  * @param[inout] attr_list List of attributes to set on objects, one attribute per object
- * @param[in] type Bulk operation type
+ * @param[in] mode Bulk operation error handling mode
  * @param[out] object_statuses List of status for every object. Caller needs to
  * allocate the buffer
  *
@@ -214,7 +217,7 @@ sai_status_t sai_bulk_get_route_entry_attribute(
         _In_ const sai_route_entry_t *route_entry,
         _In_ const uint32_t *attr_count,
         _Inout_ sai_attribute_t **attr_list,
-        _In_ sai_bulk_op_type_t type,
+        _In_ sai_bulk_op_error_mode_t mode,
         _Out_ sai_status_t *object_statuses);
 
 sai_status_t sai_bulk_create_next_hop_group_members(
@@ -222,14 +225,14 @@ sai_status_t sai_bulk_create_next_hop_group_members(
         _In_ uint32_t object_count,
         _In_ const uint32_t *attr_count,
         _In_ const sai_attribute_t *const *attrs,
-        _In_ sai_bulk_op_type_t type,
+        _In_ sai_bulk_op_error_mode_t mode,
         _Out_ sai_object_id_t *object_id,
         _Out_ sai_status_t *object_statuses);
 
 sai_status_t sai_bulk_remove_next_hop_group_members(
         _In_ uint32_t object_count,
         _In_ const sai_object_id_t *object_id,
-        _In_ sai_bulk_op_type_t type,
+        _In_ sai_bulk_op_error_mode_t mode,
         _Out_ sai_status_t *object_statuses);
 
 sai_status_t sai_bulk_create_fdb_entry(
@@ -237,12 +240,12 @@ sai_status_t sai_bulk_create_fdb_entry(
         _In_ const sai_fdb_entry_t *fdb_entry,
         _In_ const uint32_t *attr_count,
         _In_ const sai_attribute_t *const *attr_list,
-        _In_ sai_bulk_op_type_t type,
+        _In_ sai_bulk_op_error_mode_t mode,
         _Out_ sai_status_t *object_statuses);
 
 sai_status_t sai_bulk_remove_fdb_entry(
         _In_ uint32_t object_count,
         _In_ const sai_fdb_entry_t *fdb_entry,
-        _In_ sai_bulk_op_type_t type,
+        _In_ sai_bulk_op_error_mode_t mode,
         _Out_ sai_status_t *object_statuses);
 #endif // __SAIREDIS__

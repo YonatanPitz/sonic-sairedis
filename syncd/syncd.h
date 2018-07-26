@@ -25,7 +25,7 @@ extern "C" {
 #include "sai.h"
 }
 
-#include "meta/saiserialize.h"
+#include "meta/sai_serialize.h"
 #include "meta/saiattributelist.h"
 #include "swss/redisclient.h"
 #include "swss/dbconnector.h"
@@ -112,5 +112,8 @@ void stopNotificationsProcessingThread();
 sai_status_t processBulkEvent(
         _In_ sai_common_api_t api,
         _In_ const swss::KeyOpFieldsValuesTuple &kco);
+
+void set_sai_api_log_min_prio(
+        _In_ const std::string &prio);
 
 #endif // __SYNCD_H__
