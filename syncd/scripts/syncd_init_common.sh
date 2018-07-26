@@ -32,7 +32,11 @@ esac
 
 config_syncd_bcm()
 {
-    CMD_ARGS+=" -p $HWSKU_DIR/sai.profile"
+    if [ -f "/etc/sai.d/sai.profile" ]; then
+        CMD_ARGS+=" -p /etc/sai.d/sai.profile"
+    else
+        CMD_ARGS+=" -p $HWSKU_DIR/sai.profile"
+    fi
 
     [ -e /dev/linux-bcm-knet ] || mknod /dev/linux-bcm-knet c 122 0
     [ -e /dev/linux-user-bde ] || mknod /dev/linux-user-bde c 126 0
@@ -50,7 +54,7 @@ config_syncd_mlnx()
     [ -e /dev/sxdevs/sxcdev ] || ( mkdir -p /dev/sxdevs && mknod /dev/sxdevs/sxcdev c 231 193 )
 
     # Read MAC address and align the last 6 bits.
-    MAC_ADDRESS=$(ip link show eth0 | grep ether | awk '{print $2}')
+    MAC_ADDRESS=$(sonic-cfggen -d -v DEVICE_METADATA.localhost.mac)
     last_byte=$(python -c "print '$MAC_ADDRESS'[-2:]")
     aligned_last_byte=$(python -c "print format(int(int('$last_byte', 16) & 0b11000000), '02x')")  # put mask and take away the 0x prefix
     ALIGNED_MAC_ADDRESS=$(python -c "print '$MAC_ADDRESS'[:-2] + '$aligned_last_byte'")          # put aligned byte into the end of MAC
@@ -66,25 +70,19 @@ config_syncd_mlnx()
 
 config_syncd_centec()
 {
-    CMD_ARGS+=" -p /tmp/sai.profile"
+    CMD_ARGS+=" -p $HWSKU_DIR/sai.profile"
 
     [ -e /dev/linux_dal ] || mknod /dev/linux_dal c 198 0
     [ -e /dev/net/tun ] || ( mkdir -p /dev/net && mknod /dev/net/tun c 10 200 )
-
-    # Read MAC address and align the last 6 bits.
-    MAC_ADDRESS=$(ip link show eth0 | grep ether | awk '{print $2}')
-    last_byte=$(python -c "print '$MAC_ADDRESS'[-2:]")
-    aligned_last_byte=$(python -c "print format(int(int('$last_byte', 16) & 0b11000000), '02x')")  # put mask and take away the 0x prefix
-    ALIGNED_MAC_ADDRESS=$(python -c "print '$MAC_ADDRESS'[:-2] + '$aligned_last_byte'")          # put aligned byte into the end of MAC
-
-    # Write MAC address into /tmp/profile file.
-    cat $HWSKU_DIR/sai.profile > /tmp/sai.profile
-    echo "DEVICE_MAC_ADDRESS=$ALIGNED_MAC_ADDRESS" >> /tmp/sai.profile
+    
+    if [ $FAST_REBOOT == "yes" ]; then
+        CMD_ARGS+=" -t fast"
+    fi
 }
 
 config_syncd_cavium()
 {
-    CMD_ARGS+=" -p /etc/ssw/AS7512/profile.ini"
+    CMD_ARGS+=" -p $HWSKU_DIR/sai.profile -d"
 
     export XP_ROOT=/usr/bin/
 
@@ -92,6 +90,10 @@ config_syncd_cavium()
     until [ $(redis-cli ping | grep -c PONG) -gt 0 ]; do
         sleep 1
     done
+
+    if [ $FAST_REBOOT == "yes" ]; then
+        CMD_ARGS+=" -t fast"
+    fi
 }
 
 config_syncd_marvell()
@@ -99,6 +101,33 @@ config_syncd_marvell()
     CMD_ARGS+=" -p $HWSKU_DIR/sai.profile"
 
     [ -e /dev/net/tun ] || ( mkdir -p /dev/net && mknod /dev/net/tun c 10 200 )
+}
+
+config_syncd_barefoot()
+{
+    # Check and load SDE profile
+    P4_PROFILE=$(sonic-cfggen -d -v 'DEVICE_METADATA["localhost"]["p4_profile"]')
+    if [[ -n "$P4_PROFILE" ]]; then
+        if [[ ( -d /opt/bfn/install_${P4_PROFILE} ) && ( -L /opt/bfn/install || ! -e /opt/bfn/install ) ]]; then
+            ln -srfn /opt/bfn/install_${P4_PROFILE} /opt/bfn/install
+        fi
+    fi
+    export ONIE_PLATFORM=`grep onie_platform /etc/machine.conf | awk 'BEGIN { FS = "=" } ; { print $2 }'`
+    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/bfn/install/lib/platform/$ONIE_PLATFORM:/opt/bfn/install/lib:/opt/bfn/install/lib/tofinopd/switch
+    ./opt/bfn/install/bin/dma_setup.sh
+    export LD_PRELOAD=libswitchapi.so:libswitchsai.so:libpd.so:libpdcli.so:libdriver.so:libbfsys.so:libbfutils.so:libbf_switchd_lib.so:libtofinopdfixed_thrift.so:libpdthrift.so
+
+    if [ $FAST_REBOOT == "yes" ]; then
+        CMD_ARGS+=" -t fast"
+    fi
+}
+
+config_syncd_nephos()
+{
+    CMD_ARGS+=" -p $HWSKU_DIR/sai.profile"
+    if [ $FAST_REBOOT == "yes" ]; then
+        CMD_ARGS+=" -t fast"
+    fi
 }
 
 config_syncd()
@@ -113,6 +142,10 @@ config_syncd()
         config_syncd_centec
     elif [ "$SONIC_ASIC_TYPE" == "marvell" ]; then
         config_syncd_marvell
+     elif [ "$SONIC_ASIC_TYPE" == "barefoot" ]; then
+         config_syncd_barefoot
+    elif [ "$SONIC_ASIC_TYPE" == "nephos" ]; then
+        config_syncd_nephos
     else
         echo "Unknown ASIC type $SONIC_ASIC_TYPE"
         exit 1

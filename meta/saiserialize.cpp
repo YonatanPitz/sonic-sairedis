@@ -1,4 +1,4 @@
-#include "saiserialize.h"
+#include "sai_serialize.h"
 #include "meta/sai_meta.h"
 #include "swss/tokenize.h"
 #include "swss/json.hpp"
@@ -14,6 +14,8 @@ using json = nlohmann::json;
 int char_to_int(
         _In_ const char c)
 {
+    SWSS_LOG_ENTER();
+
     if (c >= '0' && c <= '9')
         return c - '0';
 
@@ -23,13 +25,14 @@ int char_to_int(
     if (c >= 'a' && c <= 'f')
         return c - 'a' + 10;
 
-    SWSS_LOG_ERROR("unable to convert char %d to int", c);
-    throw std::runtime_error("unable to convert char to int");
+    SWSS_LOG_THROW("unable to convert char %d to int", c);
 }
 
 template<class T, typename U>
 T* sai_alloc_n_of_ptr_type(U count, T*)
 {
+    SWSS_LOG_ENTER();
+
     return new T[count];
 }
 
@@ -38,6 +41,8 @@ void sai_alloc_list(
         _In_ T count,
         _In_ U &element)
 {
+    SWSS_LOG_ENTER();
+
     element.count = count;
     element.list = sai_alloc_n_of_ptr_type(count, element.list);
 }
@@ -46,6 +51,8 @@ template<typename T>
 void sai_free_list(
         _In_ T &element)
 {
+    SWSS_LOG_ENTER();
+
     delete[] element.list;
     element.list = NULL;
 }
@@ -55,6 +62,8 @@ void transfer_primitive(
         _In_ const T &src_element,
         _In_ T &dst_element)
 {
+    SWSS_LOG_ENTER();
+
     const unsigned char* src_mem = reinterpret_cast<const unsigned char*>(&src_element);
     unsigned char* dst_mem = reinterpret_cast<unsigned char*>(&dst_element);
 
@@ -67,6 +76,8 @@ sai_status_t transfer_list(
         _In_ T &dst_element,
         _In_ bool countOnly)
 {
+    SWSS_LOG_ENTER();
+
     if (countOnly || dst_element.count == 0)
     {
         transfer_primitive(src_element.count, dst_element.count);
@@ -84,8 +95,7 @@ sai_status_t transfer_list(
     {
         if (src_element.list == NULL && src_element.count > 0)
         {
-            SWSS_LOG_ERROR("source list is NULL when count is %u, wrong db insert?", src_element.count);
-            throw std::runtime_error("source list is NULL when count is not zero, wrong db insert?");
+            SWSS_LOG_THROW("source list is NULL when count is %u, wrong db insert?", src_element.count);
         }
 
         transfer_primitive(src_element.count, dst_element.count);
@@ -117,6 +127,8 @@ sai_status_t transfer_attribute(
         _In_ sai_attribute_t &dst_attr,
         _In_ bool countOnly)
 {
+    SWSS_LOG_ENTER();
+
     switch (serialization_type)
     {
         case SAI_ATTR_VALUE_TYPE_BOOL:
@@ -227,8 +239,12 @@ sai_status_t transfer_attribute(
             RETURN_ON_ERROR(transfer_list(src_attr.value.qosmap, dst_attr.value.qosmap, countOnly));
             break;
 
-        case SAI_ATTR_VALUE_TYPE_TUNNEL_MAP_LIST:
-            RETURN_ON_ERROR(transfer_list(src_attr.value.tunnelmap, dst_attr.value.tunnelmap, countOnly));
+        case SAI_ATTR_VALUE_TYPE_ACL_RESOURCE_LIST:
+            RETURN_ON_ERROR(transfer_list(src_attr.value.aclresource, dst_attr.value.aclresource, countOnly));
+            break;
+
+        case SAI_ATTR_VALUE_TYPE_IP_ADDRESS_LIST:
+            RETURN_ON_ERROR(transfer_list(src_attr.value.ipaddrlist, dst_attr.value.ipaddrlist, countOnly));
             break;
 
             /* ACL FIELD DATA */
@@ -310,6 +326,11 @@ sai_status_t transfer_attribute(
 
             /* ACL ACTION DATA */
 
+        case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_BOOL:
+            transfer_primitive(src_attr.value.aclaction.enable, dst_attr.value.aclaction.enable);
+            transfer_primitive(src_attr.value.aclaction.parameter.booldata, dst_attr.value.aclaction.parameter.booldata);
+            break;
+
         case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_UINT8:
             transfer_primitive(src_attr.value.aclaction.enable, dst_attr.value.aclaction.enable);
             transfer_primitive(src_attr.value.aclaction.parameter.u8, dst_attr.value.aclaction.parameter.u8);
@@ -380,6 +401,8 @@ sai_status_t transfer_attributes(
         _In_ sai_attribute_t *dst_attr_list,
         _In_ bool countOnly)
 {
+    SWSS_LOG_ENTER();
+
     for (uint32_t i = 0; i < attr_count; i++)
     {
         const sai_attribute_t &src_attr = src_attr_list[i];
@@ -389,17 +412,14 @@ sai_status_t transfer_attributes(
 
         if (src_attr.id != dst_attr.id)
         {
-            SWSS_LOG_ERROR("src vs dst attr id don't match GET mismatch");
-            throw std::runtime_error("src vs dst attr id don't match GET mismatch");
+            SWSS_LOG_THROW("src vs dst attr id don't match GET mismatch");
         }
 
         if (meta == NULL)
         {
-            SWSS_LOG_ERROR("unable to get metadata for object type %s, attribute %d",
+            SWSS_LOG_THROW("unable to get metadata for object type %s, attribute %d",
                     sai_serialize_object_type(object_type).c_str(),
                     src_attr.id);
-
-            throw std::runtime_error("unable to get metadata");
         }
 
         RETURN_ON_ERROR(transfer_attribute(meta->attrvaluetype, src_attr, dst_attr, countOnly));
@@ -427,8 +447,7 @@ uint8_t get_ip_mask(
 
         if (zeros && bit)
         {
-            SWSS_LOG_ERROR("FATAL: invalid ipv%d mask", ipv6 ? 6 : 4);
-            throw std::runtime_error("invalid ip mask");
+            SWSS_LOG_THROW("FATAL: invalid ipv%d mask", ipv6 ? 6 : 4);
         }
 
         zeros |= !bit;
@@ -467,14 +486,12 @@ void sai_populate_ip_mask(
 
     if (mask == NULL)
     {
-        SWSS_LOG_ERROR("mask pointer is null");
-        throw std::runtime_error("mask pointer is null");
+        SWSS_LOG_THROW("mask pointer is null");
     }
 
     if ((ipv6 && (bits > 128)) || (!ipv6 && (bits > 32)))
     {
-        SWSS_LOG_ERROR("invalid ip mask bits %u", bits);
-        throw std::runtime_error("invalid ip mask bits");
+        SWSS_LOG_THROW("invalid ip mask bits %u", bits);
     }
 
     // zero all mask
@@ -579,6 +596,8 @@ std::string sai_serialize_enum(
         _In_ const int32_t value,
         _In_ const sai_enum_metadata_t* meta)
 {
+    SWSS_LOG_ENTER();
+
     if (meta == NULL)
     {
         return sai_serialize_number(value);
@@ -601,6 +620,8 @@ std::string sai_serialize_number(
         _In_ const uint32_t number,
         _In_ bool hex)
 {
+    SWSS_LOG_ENTER();
+
     return sai_serialize_number<uint32_t>(number, hex);
 }
 
@@ -631,12 +652,16 @@ std::string sai_serialize_common_api(
 std::string sai_serialize_object_type(
         _In_ const sai_object_type_t object_type)
 {
+    SWSS_LOG_ENTER();
+
     return sai_serialize_enum(object_type, &sai_metadata_enum_sai_object_type_t);
 }
 
 std::string sai_serialize_attr_value_type(
         _In_ const sai_attr_value_type_t attr_value_type)
 {
+    SWSS_LOG_ENTER();
+
     return sai_serialize_enum(attr_value_type, &sai_metadata_enum_sai_attr_value_type_t);
 }
 
@@ -693,13 +718,7 @@ std::string sai_serialize_fdb_entry(
 
     j["switch_id"] = sai_serialize_object_id(fdb_entry.switch_id);
     j["mac"] = sai_serialize_mac(fdb_entry.mac_address);
-#if true
-    j["vlan"] = sai_serialize_vlan_id(fdb_entry.vlan_id);
-    j["bridge_type"] = sai_serialize_enum(fdb_entry.bridge_type, &sai_metadata_enum_sai_fdb_entry_bridge_type_t);
-    j["bridge_id"] = sai_serialize_object_id(fdb_entry.bridge_id);
-#else
-    j["bvid"] = sai_serialize_object_id(fdb_entry.bvid);
-#endif
+    j["bvid"] = sai_serialize_object_id(fdb_entry.bv_id);
 
     return j.dump();
 }
@@ -712,12 +731,12 @@ std::string sai_serialize_port_stat(
     return sai_serialize_enum(counter, &sai_metadata_enum_sai_port_stat_t);
 }
 
-std::string sai_serialize_queue_stat(
-        _In_ const sai_queue_stat_t counter)
+std::string sai_serialize_port_pool_stat(
+        _In_ const sai_port_pool_stat_t counter)
 {
     SWSS_LOG_ENTER();
 
-    return sai_serialize_enum(counter, &sai_metadata_enum_sai_queue_stat_t);
+    return sai_serialize_enum(counter, &sai_metadata_enum_sai_port_pool_stat_t);
 }
 
 std::string sai_serialize_bmtor_stat(
@@ -728,12 +747,28 @@ std::string sai_serialize_bmtor_stat(
     return sai_serialize_enum(counter, &sai_metadata_enum_sai_bmtor_stat_t);
 }
 
+std::string sai_serialize_queue_stat(
+        _In_ const sai_queue_stat_t counter)
+{
+    SWSS_LOG_ENTER();
+
+    return sai_serialize_enum(counter, &sai_metadata_enum_sai_queue_stat_t);
+}
+
 std::string sai_serialize_ingress_priority_group_stat(
         _In_ const sai_ingress_priority_group_stat_t counter)
 {
     SWSS_LOG_ENTER();
 
     return sai_serialize_enum(counter, &sai_metadata_enum_sai_ingress_priority_group_stat_t);
+}
+
+std::string sai_serialize_tunnel_stat(
+        _In_ const sai_tunnel_stat_t counter)
+{
+    SWSS_LOG_ENTER();
+
+    return sai_serialize_enum(counter, &sai_metadata_enum_sai_tunnel_stat_t);
 }
 
 std::string sai_serialize_queue_attr(
@@ -783,8 +818,7 @@ std::string sai_serialize_ipv4(
 
     if (inet_ntop(AF_INET, &(sa.sin_addr), buf, INET_ADDRSTRLEN) == NULL)
     {
-        SWSS_LOG_ERROR("FATAL: failed to convert IPv4 address, errno: %s", strerror(errno));
-        throw std::runtime_error("failed to convert IPv4");
+        SWSS_LOG_THROW("FATAL: failed to convert IPv4 address, errno: %s", strerror(errno));
     }
 
     return buf;
@@ -811,8 +845,7 @@ std::string sai_serialize_ipv6(
 
     if (inet_ntop(AF_INET6, &(sa6.sin6_addr), buf, INET6_ADDRSTRLEN) == NULL)
     {
-        SWSS_LOG_ERROR("FATAL: failed to convert IPv6 address, errno: %s", strerror(errno));
-        throw std::runtime_error("failed to convert IPv6");
+        SWSS_LOG_THROW("FATAL: failed to convert IPv6 address, errno: %s", strerror(errno));
     }
 
     return buf;
@@ -835,14 +868,15 @@ std::string sai_serialize_ip_address(
 
         default:
 
-            SWSS_LOG_ERROR("FATAL: invalid ip address family: %d", ipaddress.addr_family);
-            throw std::runtime_error("invalid ip address family");
+            SWSS_LOG_THROW("FATAL: invalid ip address family: %d", ipaddress.addr_family);
     }
 }
 
 std::string sai_serialize_object_id(
         _In_ sai_object_id_t oid)
 {
+    SWSS_LOG_ENTER();
+
     char buf[32];
 
     snprintf(buf, sizeof(buf), "oid:0x%lx", oid);
@@ -886,6 +920,15 @@ std::string sai_serialize_list(
 
 }
 
+std::string sai_serialize_ip_address_list(
+        _In_ const sai_ip_address_list_t& list,
+        _In_ bool countOnly)
+{
+    SWSS_LOG_ENTER();
+
+    return sai_serialize_list(list, countOnly, [&](sai_ip_address_t item) { return sai_serialize_ip_address(item);} );
+}
+
 std::string sai_serialize_enum_list(
         _In_ const sai_s32_list_t& list,
         _In_ const sai_enum_metadata_t* meta,
@@ -919,6 +962,8 @@ std::string sai_serialize_number_list(
 json sai_serialize_qos_map_params(
         _In_ const sai_qos_map_params_t& params)
 {
+    SWSS_LOG_ENTER();
+
     json j;
 
     j["tc"]     = params.tc;
@@ -935,6 +980,8 @@ json sai_serialize_qos_map_params(
 json sai_serialize_qos_map(
         _In_ const sai_qos_map_t& qosmap)
 {
+    SWSS_LOG_ENTER();
+
     json j;
 
     j["key"]    = sai_serialize_qos_map_params(qosmap.key);
@@ -974,41 +1021,31 @@ std::string sai_serialize_qos_map_list(
     return j.dump();
 }
 
-json sai_serialize_tunnel_map_params(
-        _In_ const sai_tunnel_map_params_t& params)
+json sai_serialize_acl_resource(
+        _In_ const sai_acl_resource_t& aclresource)
 {
+    SWSS_LOG_ENTER();
+
     json j;
 
-    j["oecn"] = params.oecn;
-    j["uecn"] = params.uecn;
-    j["vni"]  = params.vni_id;
-    j["vlan"] = sai_serialize_vlan_id(params.vlan_id);
+    j["stage"]    = sai_serialize_enum(aclresource.stage, &sai_metadata_enum_sai_acl_stage_t);
+    j["bind_point"]  = sai_serialize_enum(aclresource.bind_point, &sai_metadata_enum_sai_acl_bind_point_type_t);
+    j["avail_num"]  = sai_serialize_number(aclresource.avail_num);
 
     return j;
 }
 
-json sai_serialize_tunnel_map(
-        _In_ const sai_tunnel_map_t& tunnelmap)
-{
-    json j;
-
-    j["key"]    = sai_serialize_tunnel_map_params(tunnelmap.key);
-    j["value"]  = sai_serialize_tunnel_map_params(tunnelmap.value);;
-
-    return j;
-}
-
-std::string sai_serialize_tunnel_map_list(
-        _In_ const sai_tunnel_map_list_t& tunnelmap,
+std::string sai_serialize_acl_resource_list(
+        _In_ const sai_acl_resource_list_t& aclresource,
         _In_ bool countOnly)
 {
     SWSS_LOG_ENTER();
 
     json j;
 
-    j["count"] = tunnelmap.count;
+    j["count"] = aclresource.count;
 
-    if (tunnelmap.list == NULL || countOnly)
+    if (aclresource.list == NULL || countOnly)
     {
         j["list"] = nullptr;
 
@@ -1017,9 +1054,9 @@ std::string sai_serialize_tunnel_map_list(
 
     json arr = json::array();
 
-    for (uint32_t i = 0; i < tunnelmap.count; ++i)
+    for (uint32_t i = 0; i < aclresource.count; ++i)
     {
-        json item = sai_serialize_tunnel_map(tunnelmap.list[i]);
+        json item = sai_serialize_acl_resource(aclresource.list[i]);
 
         arr.push_back(item);
     }
@@ -1053,6 +1090,9 @@ std::string sai_serialize_acl_action(
 
     switch (meta.attrvaluetype)
     {
+        case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_BOOL:
+            return sai_serialize_bool(action.parameter.booldata);
+
         case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_UINT8:
             return sai_serialize_number(action.parameter.u8);
 
@@ -1087,8 +1127,7 @@ std::string sai_serialize_acl_action(
             return sai_serialize_oid_list(action.parameter.objlist, countOnly);
 
         default:
-            SWSS_LOG_ERROR("FATAIL: invalid serialization type %d", meta.attrvaluetype);
-            throw std::runtime_error("serialization type is not supported");
+            SWSS_LOG_THROW("FATAIL: invalid serialization type %d", meta.attrvaluetype);
     }
 }
 
@@ -1147,8 +1186,7 @@ std::string sai_serialize_acl_field(
             return sai_serialize_number_list(field.data.u8list, countOnly) + "&mask:" + sai_serialize_number_list(field.mask.u8list, countOnly, true);
 
         default:
-            SWSS_LOG_ERROR("FATAIL: invalid serialization type %d", meta.attrvaluetype);
-            throw std::runtime_error("serialization type is not supported");
+            SWSS_LOG_THROW("FATAIL: invalid serialization type %d", meta.attrvaluetype);
     }
 }
 
@@ -1256,8 +1294,11 @@ std::string sai_serialize_attr_value(
         case SAI_ATTR_VALUE_TYPE_QOS_MAP_LIST:
             return sai_serialize_qos_map_list(attr.value.qosmap, countOnly);
 
-        case SAI_ATTR_VALUE_TYPE_TUNNEL_MAP_LIST:
-            return sai_serialize_tunnel_map_list(attr.value.tunnelmap, countOnly);
+        case SAI_ATTR_VALUE_TYPE_ACL_RESOURCE_LIST:
+            return sai_serialize_acl_resource_list(attr.value.aclresource, countOnly);
+
+        case SAI_ATTR_VALUE_TYPE_IP_ADDRESS_LIST:
+            return sai_serialize_ip_address_list(attr.value.ipaddrlist, countOnly);
 
             // ACL FIELD DATA
 
@@ -1278,6 +1319,7 @@ std::string sai_serialize_attr_value(
 
             // ACL ACTION DATA
 
+        case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_BOOL:
         case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_UINT8:
         case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_INT8:
         case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_UINT16:
@@ -1295,8 +1337,7 @@ std::string sai_serialize_attr_value(
             return sai_serialize_acl_capability(meta, attr.value.aclcapability, countOnly);
 
         default:
-            SWSS_LOG_ERROR("FATAL: invalid serialization type %d", meta.attrvaluetype);
-            throw std::runtime_error("serialization type is not supported");
+            SWSS_LOG_THROW("FATAL: invalid serialization type %d", meta.attrvaluetype);
     }
 }
 
@@ -1317,8 +1358,7 @@ std::string sai_serialize_ip_prefix(
 
         default:
 
-            SWSS_LOG_ERROR("FATAL: invalid ip prefix address family: %d", prefix.addr_family);
-            throw std::runtime_error("invalid ip address family");
+            SWSS_LOG_THROW("FATAL: invalid ip prefix address family: %d", prefix.addr_family);
     }
 }
 
@@ -1364,11 +1404,9 @@ json sai_serialize_json_fdb_event_notification_data(
 
         if (meta == NULL)
         {
-            SWSS_LOG_ERROR("unable to get metadata for object type %s, attribute %d",
+            SWSS_LOG_THROW("unable to get metadata for object type %s, attribute %d",
                     sai_serialize_object_type(SAI_OBJECT_TYPE_FDB_ENTRY).c_str(),
                     fdb_event.attr[i].id);
-
-            throw std::runtime_error("unable to get metadata");
         }
 
         json item;
@@ -1393,8 +1431,7 @@ std::string sai_serialize_fdb_event_ntf(
 
     if (fdb_event == NULL)
     {
-        SWSS_LOG_ERROR("fdb_event pointer is null");
-        throw std::runtime_error("fdb_event pointer is null");
+        SWSS_LOG_THROW("fdb_event pointer is null");
     }
 
     json j = json::array();
@@ -1418,8 +1455,7 @@ std::string sai_serialize_port_oper_status_ntf(
 
     if (port_oper_status == NULL)
     {
-        SWSS_LOG_ERROR("port_oper_status pointer is null");
-        throw std::runtime_error("port_oper_status pointer is null");
+        SWSS_LOG_THROW("port_oper_status pointer is null");
     }
 
     json j = json::array();
@@ -1446,8 +1482,7 @@ std::string sai_serialize_queue_deadlock_ntf(
 
     if (deadlock_data == NULL)
     {
-        SWSS_LOG_ERROR("deadlock_data pointer is null");
-        throw std::runtime_error("deadlock_data pointer is null");
+        SWSS_LOG_THROW("deadlock_data pointer is null");
     }
 
     json j = json::array();
@@ -1533,9 +1568,7 @@ void sai_deserialize_bool(
         return;
     }
 
-    SWSS_LOG_ERROR("failed to deserialize '%s' as bool", s.c_str());
-
-    throw std::runtime_error("bool deserialize failed");
+    SWSS_LOG_THROW("failed to deserialize '%s' as bool", s.c_str());
 }
 
 void sai_deserialize_chardata(
@@ -1558,8 +1591,7 @@ void sai_deserialize_chardata(
         {
             if (i+1 >= len || ((s[i+1] != '\\') && (s[i+1] != 'x')))
             {
-                SWSS_LOG_ERROR("invalid chardata %s", s.c_str());
-                throw std::runtime_error("invalid chardata");
+                SWSS_LOG_THROW("invalid chardata %s", s.c_str());
             }
 
             if (s[i+1] == '\\')
@@ -1573,8 +1605,7 @@ void sai_deserialize_chardata(
 
             if (i + 2 >= len)
             {
-                SWSS_LOG_ERROR("invalid chardata %s", s.c_str());
-                throw std::runtime_error("invalid chardata");
+                SWSS_LOG_THROW("invalid chardata %s", s.c_str());
             }
 
             int h = char_to_int(s[i+1]);
@@ -1594,8 +1625,7 @@ void sai_deserialize_chardata(
 
     if (len > CHAR_LEN)
     {
-        SWSS_LOG_ERROR("invalid chardata %s", s.c_str());
-        throw std::runtime_error("invalid chardata");
+        SWSS_LOG_THROW("invalid chardata %s", s.c_str());
     }
 
     memcpy(chardata, deserialized.data(), len);
@@ -1607,6 +1637,8 @@ void sai_deserialize_number(
         _Out_ T& number,
         _In_ bool hex = false)
 {
+    SWSS_LOG_ENTER();
+
     errno = 0;
 
     char *endptr = NULL;
@@ -1615,8 +1647,7 @@ void sai_deserialize_number(
 
     if (errno != 0 || endptr != s.c_str() + s.length())
     {
-        SWSS_LOG_ERROR("invalid number %s", s.c_str());
-        throw std::runtime_error("invalid number");
+        SWSS_LOG_THROW("invalid number %s", s.c_str());
     }
 }
 
@@ -1625,6 +1656,8 @@ void sai_deserialize_number(
         _Out_ uint32_t& number,
         _In_ bool hex)
 {
+    SWSS_LOG_ENTER();
+
     sai_deserialize_number<uint32_t>(s, number, hex);
 }
 
@@ -1633,6 +1666,8 @@ void sai_deserialize_enum(
         _In_ const sai_enum_metadata_t *meta,
         _Out_ int32_t& value)
 {
+    SWSS_LOG_ENTER();
+
     if (meta == NULL)
     {
         return sai_deserialize_number(s, value);
@@ -1660,8 +1695,7 @@ void sai_deserialize_mac(
 
     if (s.length() != (6*2+5))
     {
-        SWSS_LOG_ERROR("invalid mac address %s", s.c_str());
-        throw std::runtime_error("invalid mac number");
+        SWSS_LOG_THROW("invalid mac address %s", s.c_str());
     }
 
     int i = 0;
@@ -1681,10 +1715,11 @@ void sai_deserialize_object_id(
         _In_ const std::string& s,
         _Out_ sai_object_id_t& oid)
 {
+    SWSS_LOG_ENTER();
+
     if (s.find("oid:0x") != 0)
     {
-        SWSS_LOG_ERROR("invalid oid %s", s.c_str());
-        throw std::runtime_error("invalid oid");
+        SWSS_LOG_THROW("invalid oid %s", s.c_str());
     }
 
     errno = 0;
@@ -1695,8 +1730,7 @@ void sai_deserialize_object_id(
 
     if (errno != 0 || endptr != s.c_str() + s.length())
     {
-        SWSS_LOG_ERROR("invalid oid %s", s.c_str());
-        throw std::runtime_error("invalid oid");
+        SWSS_LOG_THROW("invalid oid %s", s.c_str());
     }
 }
 
@@ -1719,8 +1753,7 @@ void sai_deserialize_list(
 
     if (pos == std::string::npos)
     {
-        SWSS_LOG_ERROR("invalid list %s", s.c_str());
-        throw std::runtime_error("invalid list");
+        SWSS_LOG_THROW("invalid list %s", s.c_str());
     }
 
     std::string scount = s.substr(0, pos);
@@ -1739,8 +1772,7 @@ void sai_deserialize_list(
 
     if (tokens.size() != list.count)
     {
-        SWSS_LOG_ERROR("invalid list count %lu != %u", tokens.size(), list.count);
-        throw std::runtime_error("invalid list count");
+        SWSS_LOG_THROW("invalid list count %lu != %u", tokens.size(), list.count);
     }
 
     // list.list = sai_alloc_list(list.count, list);
@@ -1846,8 +1878,7 @@ void sai_deserialize_qos_map_list(
 
     if (arr.size() != (size_t)qosmap.count)
     {
-        SWSS_LOG_ERROR("qos map count mismatch %lu vs %u", arr.size(), qosmap.count);
-        throw std::runtime_error("qos map count mismatch");
+        SWSS_LOG_THROW("qos map count mismatch %lu vs %u", arr.size(), qosmap.count);
     }
 
     qosmap.list = sai_alloc_n_of_ptr_type(qosmap.count, qosmap.list);
@@ -1860,41 +1891,45 @@ void sai_deserialize_qos_map_list(
     }
 }
 
-void sai_deserialize_tunnel_map_params(
-        _In_ const json& j,
-        _Out_ sai_tunnel_map_params_t& params)
-{
-    SWSS_LOG_ENTER();
-
-    SWSS_LOG_DEBUG("%s", j.dump().c_str());
-
-    params.oecn   = j["oecn"];
-    params.uecn   = j["uecn"];
-    params.vni_id = j["vni"];
-
-    sai_deserialize_vlan_id(j["vlan"], params.vlan_id);
-}
-
-void sai_deserialize_tunnel_map(
-        _In_ const json& j,
-        _Out_ sai_tunnel_map_t& tunnelmap)
-{
-    SWSS_LOG_ENTER();
-
-    sai_deserialize_tunnel_map_params(j["key"], tunnelmap.key);
-    sai_deserialize_tunnel_map_params(j["value"], tunnelmap.value);
-}
-
-void sai_deserialize_tunnel_map_list(
+void sai_deserialize_acl_stage(
         _In_ const std::string& s,
-        _Out_ sai_tunnel_map_list_t& tunnelmap,
+        _Out_ sai_acl_stage_t& stage)
+{
+    SWSS_LOG_ENTER();
+
+    sai_deserialize_enum(s, &sai_metadata_enum_sai_acl_stage_t, (int32_t&)stage);
+}
+
+void sai_deserialize_acl_bind_point(
+        _In_ const std::string& s,
+        _Out_ sai_acl_bind_point_type_t& bind_point)
+{
+    SWSS_LOG_ENTER();
+
+    sai_deserialize_enum(s, &sai_metadata_enum_sai_acl_bind_point_type_t, (int32_t&)bind_point);
+}
+
+void sai_deserialize_acl_resource(
+        _In_ const json& j,
+        _Out_ sai_acl_resource_t& aclresource)
+{
+    SWSS_LOG_ENTER();
+
+    sai_deserialize_acl_stage(j["stage"], aclresource.stage);
+    sai_deserialize_acl_bind_point(j["bind_point"], aclresource.bind_point);
+    sai_deserialize_number(j["avail_num"], aclresource.avail_num);
+}
+
+void sai_deserialize_acl_resource_list(
+        _In_ const std::string& s,
+        _Out_ sai_acl_resource_list_t& aclresource,
         _In_ bool countOnly)
 {
     SWSS_LOG_ENTER();
 
     json j = json::parse(s);
 
-    tunnelmap.count = j["count"];
+    aclresource.count = j["count"];
 
     if (countOnly)
     {
@@ -1903,25 +1938,25 @@ void sai_deserialize_tunnel_map_list(
 
     if (j["list"] == nullptr)
     {
-        tunnelmap.list = NULL;
+        aclresource.list = NULL;
         return;
     }
 
     json arr = j["list"];
 
-    if (arr.size() != (size_t)tunnelmap.count)
+    if (arr.size() != (size_t)aclresource.count)
     {
-        SWSS_LOG_ERROR("tunnel map count mismatch %lu vs %u", arr.size(), tunnelmap.count);
-        throw std::runtime_error("tunnel map count mismatch");
+        SWSS_LOG_ERROR("acl resource count mismatch %lu vs %u", arr.size(), aclresource.count);
+        throw std::runtime_error("acl resource count mismatch");
     }
 
-    tunnelmap.list = sai_alloc_n_of_ptr_type(tunnelmap.count, tunnelmap.list);
+    aclresource.list = sai_alloc_n_of_ptr_type(aclresource.count, aclresource.list);
 
-    for (uint32_t i = 0; i < tunnelmap.count; ++i)
+    for (uint32_t i = 0; i < aclresource.count; ++i)
     {
         const json& item = arr[i];
 
-        sai_deserialize_tunnel_map(item, tunnelmap.list[i]);
+        sai_deserialize_acl_resource(item, aclresource.list[i]);
     }
 }
 
@@ -1933,8 +1968,7 @@ void sai_deserialize_ipv6(
 
     if (inet_pton(AF_INET6, s.c_str(), ipaddr) != 1)
     {
-        SWSS_LOG_ERROR("invalid ip address %s", s.c_str());
-        throw std::runtime_error("invalid ip addredd");
+        SWSS_LOG_THROW("invalid ip address %s", s.c_str());
     }
 }
 
@@ -1946,8 +1980,7 @@ void sai_deserialize_ipv4(
 
     if (inet_pton(AF_INET, s.c_str(), &ipaddr) != 1)
     {
-        SWSS_LOG_ERROR("invalid ip address %s", s.c_str());
-        throw std::runtime_error("invalid ip address");
+        SWSS_LOG_THROW("invalid ip address %s", s.c_str());
     }
 }
 
@@ -1978,8 +2011,17 @@ void sai_deserialize_ip_address(
         return;
     }
 
-    SWSS_LOG_ERROR("invalid ip address %s", s.c_str());
-    throw std::runtime_error("invalid ip address");
+    SWSS_LOG_THROW("invalid ip address %s", s.c_str());
+}
+
+void sai_deserialize_ip_address_list(
+        _In_ const std::string& s,
+        _Out_ sai_ip_address_list_t& list,
+        _In_ bool countOnly)
+{
+    SWSS_LOG_ENTER();
+
+    sai_deserialize_list(s, list, countOnly, [&](const std::string sitem, sai_ip_address_t& item) { sai_deserialize_ip_address(sitem, item);} );
 }
 
 template <typename T>
@@ -1993,8 +2035,7 @@ void sai_deserialize_range(
 
     if (tokens.size() != 2)
     {
-        SWSS_LOG_ERROR("invalid range %s", s.c_str());
-        throw std::runtime_error("invalid range");
+        SWSS_LOG_THROW("invalid range %s", s.c_str());
     }
 
     sai_deserialize_number(tokens[0], range.min);
@@ -2092,8 +2133,7 @@ void sai_deserialize_acl_field(
                return sai_deserialize_number_list(field.data.u8list, countOnly) + "&mask:" + sai_deserialize_uint8_hex_list(field.mask.u8list, countOnly);
                */
         default:
-            SWSS_LOG_ERROR("FATAIL: invalid serialization type %d", meta.attrvaluetype);
-            throw std::runtime_error("serialization type is not supported");
+            SWSS_LOG_THROW("FATAIL: invalid serialization type %d", meta.attrvaluetype);
     }
 }
 
@@ -2115,6 +2155,9 @@ void sai_deserialize_acl_action(
 
     switch (meta.attrvaluetype)
     {
+        case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_BOOL:
+            return sai_deserialize_bool(s, action.parameter.booldata);
+
         case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_UINT8:
             return sai_deserialize_number(s, action.parameter.u8);
 
@@ -2149,8 +2192,7 @@ void sai_deserialize_acl_action(
             return sai_deserialize_oid_list(s, action.parameter.objlist, countOnly);
 
         default:
-            SWSS_LOG_ERROR("FATAIL: invalid serialization type %d", meta.attrvaluetype);
-            throw std::runtime_error("serialization type is not supported");
+            SWSS_LOG_THROW("FATAIL: invalid serialization type %d", meta.attrvaluetype);
     }
 }
 
@@ -2247,8 +2289,11 @@ void sai_deserialize_attr_value(
         case SAI_ATTR_VALUE_TYPE_QOS_MAP_LIST:
             return sai_deserialize_qos_map_list(s, attr.value.qosmap, countOnly);
 
-        case SAI_ATTR_VALUE_TYPE_TUNNEL_MAP_LIST:
-            return sai_deserialize_tunnel_map_list(s, attr.value.tunnelmap, countOnly);
+        case SAI_ATTR_VALUE_TYPE_ACL_RESOURCE_LIST:
+            return sai_deserialize_acl_resource_list(s, attr.value.aclresource, countOnly);
+
+        case SAI_ATTR_VALUE_TYPE_IP_ADDRESS_LIST:
+            return sai_deserialize_ip_address_list(s, attr.value.ipaddrlist, countOnly);
 
             // ACL FIELD DATA
 
@@ -2269,6 +2314,7 @@ void sai_deserialize_attr_value(
 
             // ACL ACTION DATA
 
+        case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_BOOL:
         case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_UINT8:
         case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_INT8:
         case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_UINT16:
@@ -2283,8 +2329,7 @@ void sai_deserialize_attr_value(
             return sai_deserialize_acl_action(s, meta, attr.value.aclaction, countOnly);
 
         default:
-            SWSS_LOG_ERROR("deserialize type %d is not supportd yet FIXME", meta.attrvaluetype);
-            throw std::runtime_error("deserialize type is not supported yet FIXME");
+            SWSS_LOG_THROW("deserialize type %d is not supportd yet FIXME", meta.attrvaluetype);
     }
 }
 
@@ -2298,8 +2343,7 @@ void sai_deserialize_ip_prefix(
 
     if (tokens.size() != 2)
     {
-        SWSS_LOG_ERROR("invalid ip prefix %s", s.c_str());
-        throw std::runtime_error("invalid ip prefix");
+        SWSS_LOG_THROW("invalid ip prefix %s", s.c_str());
     }
 
     uint8_t mask;
@@ -2321,8 +2365,7 @@ void sai_deserialize_ip_prefix(
     }
     else
     {
-        SWSS_LOG_ERROR("invalid ip prefix %s", s.c_str());
-        throw std::runtime_error("invalid ip prefix");
+        SWSS_LOG_THROW("invalid ip prefix %s", s.c_str());
     }
 }
 
@@ -2390,6 +2433,8 @@ void sai_deserialize_object_type(
         _In_ const std::string& s,
         _Out_ sai_object_type_t& object_type)
 {
+    SWSS_LOG_ENTER();
+
     sai_deserialize_enum(s, &sai_metadata_enum_sai_object_type_t, (int32_t&)object_type);
 }
 
@@ -2402,15 +2447,6 @@ void sai_deserialize_vlan_id(
     sai_deserialize_number(s, vlan_id);
 }
 
-#if true
-void sai_deserialize_fdb_entry_bridge_type(
-        _In_ const std::string& s,
-        _Out_ sai_fdb_entry_bridge_type_t& fdb_entry_bridge_type)
-{
-    sai_deserialize_enum(s, &sai_metadata_enum_sai_fdb_entry_bridge_type_t, (int32_t&)fdb_entry_bridge_type);
-}
-#endif
-
 void sai_deserialize_fdb_entry(
         _In_ const std::string &s,
         _Out_ sai_fdb_entry_t &fdb_entry)
@@ -2421,13 +2457,7 @@ void sai_deserialize_fdb_entry(
 
     sai_deserialize_object_id(j["switch_id"], fdb_entry.switch_id);
     sai_deserialize_mac(j["mac"], fdb_entry.mac_address);
-#if true
-    sai_deserialize_vlan_id(j["vlan"], fdb_entry.vlan_id);
-    sai_deserialize_fdb_entry_bridge_type(j["bridge_type"], fdb_entry.bridge_type);
-    sai_deserialize_object_id(j["bridge_id"], fdb_entry.bridge_id);
-#else
-    sai_deserialize_object_id(j["bvid"], fdb_entry.bvid);
-#endif
+    sai_deserialize_object_id(j["bvid"], fdb_entry.bv_id);
 }
 
 void sai_deserialize_neighbor_entry(
@@ -2464,16 +2494,14 @@ void sai_deserialize_attr_id(
 
     if (meta == NULL)
     {
-        SWSS_LOG_ERROR("meta pointer is null");
-        throw std::runtime_error("meta pointer is null");
+        SWSS_LOG_THROW("meta pointer is null");
     }
 
     auto m = sai_metadata_get_attr_metadata_by_attr_id_name(s.c_str());
 
     if (m == NULL)
     {
-        SWSS_LOG_ERROR("invalid attr id: %s", s.c_str());
-        throw std::runtime_error("invalid attr id");
+        SWSS_LOG_THROW("invalid attr id: %s", s.c_str());
     }
 
     *meta = m;
@@ -2705,8 +2733,12 @@ void sai_deserialize_free_attribute_value(
             sai_free_list(attr.value.qosmap);
             break;
 
-        case SAI_ATTR_VALUE_TYPE_TUNNEL_MAP_LIST:
-            sai_free_list(attr.value.tunnelmap);
+        case SAI_ATTR_VALUE_TYPE_ACL_RESOURCE_LIST:
+            sai_free_list(attr.value.aclresource);
+            break;
+
+        case SAI_ATTR_VALUE_TYPE_IP_ADDRESS_LIST:
+            sai_free_list(attr.value.ipaddrlist);
             break;
 
             /* ACL FIELD DATA */
@@ -2734,6 +2766,7 @@ void sai_deserialize_free_attribute_value(
 
             /* ACL ACTION DATA */
 
+        case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_BOOL:
         case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_UINT8:
         case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_INT8:
         case SAI_ATTR_VALUE_TYPE_ACL_ACTION_DATA_UINT16:
@@ -2751,8 +2784,7 @@ void sai_deserialize_free_attribute_value(
             break;
 
         default:
-            SWSS_LOG_ERROR("unsupported type %d on deserialize free, FIXME", type);
-            throw std::runtime_error("unsupported type on deserialize free, FIXME");
+            SWSS_LOG_THROW("unsupported type %d on deserialize free, FIXME", type);
     }
 }
 
@@ -2769,11 +2801,9 @@ void sai_deserialize_free_fdb_event(
 
         if (meta == NULL)
         {
-            SWSS_LOG_ERROR("unable to get metadata for object type %s, attribute %d",
+            SWSS_LOG_THROW("unable to get metadata for object type %s, attribute %d",
                     sai_serialize_object_type(SAI_OBJECT_TYPE_FDB_ENTRY).c_str(),
                     fdb_event.attr[i].id);
-
-            throw std::runtime_error("unable to get metadata");
         }
 
         sai_deserialize_free_attribute_value(meta->attrvaluetype, fdb_event.attr[i]);

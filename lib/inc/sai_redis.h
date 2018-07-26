@@ -45,6 +45,7 @@ void check_notifications_pointers(
 // there is something wrong and we should fail
 #define GET_RESPONSE_TIMEOUT (6*60*1000)
 
+extern std::string getSelectResultAsString(int result);
 extern void clear_local_state();
 extern void setRecording(bool record);
 extern sai_status_t setRecordingOutputDir(
@@ -60,7 +61,7 @@ extern volatile bool g_useTempView;
 extern volatile bool g_asicInitViewMode;
 extern volatile bool g_logrotate;
 
-extern service_method_table_t                       g_services;
+extern sai_service_method_table_t                   g_services;
 extern std::shared_ptr<swss::ProducerTable>         g_asicState;
 extern std::shared_ptr<swss::ConsumerTable>         g_redisGetConsumer;
 extern std::shared_ptr<swss::NotificationConsumer>  g_redisNotifications;
@@ -95,6 +96,7 @@ extern const sai_udf_api_t              redis_udf_api;
 extern const sai_virtual_router_api_t   redis_virtual_router_api;
 extern const sai_vlan_api_t             redis_vlan_api;
 extern const sai_wred_api_t             redis_wred_api;
+extern const sai_dtel_api_t             redis_dtel_api;
 extern const sai_bmtor_api_t            redis_bmtor_api;
 
 #define UNREFERENCED_PARAMETER(X)

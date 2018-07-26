@@ -6,7 +6,7 @@ extern "C" {
 #include "sai.h"
 }
 
-#include "meta/saiserialize.h"
+#include "meta/sai_serialize.h"
 #include "meta/saiattributelist.h"
 #include "swss/logger.h"
 #include "swss/tokenize.h"
@@ -52,7 +52,7 @@ int test_profile_get_next_value (
     return -1;
 }
 
-const service_method_table_t test_services = {
+const sai_service_method_table_t test_services = {
     test_profile_get_value,
     test_profile_get_next_value
 };
@@ -212,6 +212,8 @@ void translate_local_to_redis(
 
 sai_object_type_t deserialize_object_type(const std::string& s)
 {
+    SWSS_LOG_ENTER();
+
     sai_object_type_t object_type;
 
     sai_deserialize_object_type(s, object_type);
@@ -221,6 +223,8 @@ sai_object_type_t deserialize_object_type(const std::string& s)
 
 const std::vector<swss::FieldValueTuple> get_values(const std::vector<std::string>& items)
 {
+    SWSS_LOG_ENTER();
+
     std::vector<swss::FieldValueTuple> values;
 
     // timestamp|action|objecttype:objectid|attrid=value,...
@@ -311,8 +315,8 @@ void match_list_lengths(
                 CHECK_LIST(value.qosmap);
                 break;
 
-            case SAI_ATTR_VALUE_TYPE_TUNNEL_MAP_LIST:
-                CHECK_LIST(value.tunnelmap);
+            case SAI_ATTR_VALUE_TYPE_IP_ADDRESS_LIST:
+                CHECK_LIST(value.ipaddrlist);
                 break;
 
             case SAI_ATTR_VALUE_TYPE_ACL_FIELD_DATA_OBJECT_LIST:
@@ -454,7 +458,7 @@ sai_status_t handle_fdb(
     sai_deserialize_fdb_entry(str_object_id, fdb_entry);
 
     fdb_entry.switch_id = translate_local_to_redis(fdb_entry.switch_id);
-    fdb_entry.bridge_id = translate_local_to_redis(fdb_entry.bridge_id);
+    fdb_entry.bv_id = translate_local_to_redis(fdb_entry.bv_id);
 
     switch (api)
     {
@@ -910,7 +914,7 @@ sai_status_t handle_bulk_route(
                 (uint32_t)routes.size(),
                 routes.data(),
                 attrs.data(),
-                SAI_BULK_OP_TYPE_INGORE_ERROR, // TODO we need to get that from recording
+                SAI_BULK_OP_ERROR_MODE_IGNORE_ERROR, // TODO we need to get that from recording
                 statuses.data());
 
         if (status != SAI_STATUS_SUCCESS)
@@ -1063,7 +1067,7 @@ int replay(int argc, char **argv)
 
     SWSS_LOG_ENTER();
 
-    if (argc < 2)
+    if (argc == 0)
     {
         fprintf(stderr, "ERR: need to specify filename\n");
 
@@ -1235,6 +1239,8 @@ int replay(int argc, char **argv)
 
 void printUsage()
 {
+    SWSS_LOG_ENTER();
+
     std::cout << "Usage: saiplayer [-h] recordfile" << std::endl << std::endl;
     std::cout << "    -C --skipNotifySyncd:" << std::endl;
     std::cout << "        Will not send notify init/apply view to syncd" << std::endl << std::endl;
@@ -1242,13 +1248,16 @@ void printUsage()
     std::cout << "        Enable syslog debug messages" << std::endl << std::endl;
     std::cout << "    -u --useTempView:" << std::endl;
     std::cout << "        Enable temporary view between init and apply" << std::endl << std::endl;
+    std::cout << "    -i --inspectAsic:" << std::endl;
+    std::cout << "        Inspect ASIC by ASIC DB" << std::endl << std::endl;
     std::cout << "    -h --help:" << std::endl;
     std::cout << "        Print out this message" << std::endl << std::endl;
 }
 
 bool g_useTempView = false;
+bool g_inspectAsic = false;
 
-void handleCmdLine(int argc, char **argv)
+int handleCmdLine(int argc, char **argv)
 {
     SWSS_LOG_ENTER();
 
@@ -1260,14 +1269,13 @@ void handleCmdLine(int argc, char **argv)
             { "help",             no_argument,       0, 'h' },
             { "skipNotifySyncd",  no_argument,       0, 'C' },
             { "enableDebug",      no_argument,       0, 'd' },
+            { "inspectAsic",      no_argument,       0, 'i' },
             { 0,                  0,                 0,  0  }
         };
 
-        const char* const optstring = "hCdu";
+        const char* const optstring = "hCdui";
 
-        int option_index;
-
-        int c = getopt_long(argc, argv, optstring, long_options, &option_index);
+        int c = getopt_long(argc, argv, optstring, long_options, 0);
 
         if (c == -1)
             break;
@@ -1286,6 +1294,10 @@ void handleCmdLine(int argc, char **argv)
                 g_notifySyncd = false;
                 break;
 
+            case 'i':
+                g_inspectAsic = true;
+                break;
+
             case 'h':
                 printUsage();
                 exit(EXIT_SUCCESS);
@@ -1300,6 +1312,8 @@ void handleCmdLine(int argc, char **argv)
                 exit(EXIT_FAILURE);
         }
     }
+
+    return optind;
 }
 
 void sai_meta_log_syncd(
@@ -1338,9 +1352,11 @@ void sai_meta_log_syncd(
             break;
         case SAI_LOG_LEVEL_ERROR:
             p = swss::Logger::SWSS_ERROR;
+            fprintf(stderr, "ERROR: %s: %s\n", func, buffer);
             break;
         case SAI_LOG_LEVEL_WARN:
             p = swss::Logger::SWSS_WARN;
+            fprintf(stderr, "WARN: %s: %s\n", func, buffer);
             break;
         case SAI_LOG_LEVEL_CRITICAL:
             p = swss::Logger::SWSS_CRIT;
@@ -1362,21 +1378,21 @@ int main(int argc, char **argv)
 
     swss::Logger::getInstance().setMinPrio(swss::Logger::SWSS_NOTICE);
 
-    handleCmdLine(argc, argv);
+    int handled = handleCmdLine(argc, argv);
+    argc -= handled;
+    argv += handled;
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wsuggest-attribute=format"
     sai_metadata_log = &sai_meta_log_syncd;
 #pragma GCC diagnostic pop
 
-    EXIT_ON_ERROR(sai_api_initialize(0, (const service_method_table_t *)&test_services));
+    EXIT_ON_ERROR(sai_api_initialize(0, (const sai_service_method_table_t *)&test_services));
 
-    sai_metadata_apis_query(sai_api_query);
+    sai_apis_t apis;
+    sai_metadata_apis_query(sai_api_query, &apis);
 
     sai_attribute_t attr;
-
-    attr.id = SAI_REDIS_SWITCH_ATTR_USE_TEMP_VIEW;
-    attr.value.booldata = g_useTempView;
 
     /*
      * Notice that we use null object id as switch id, which is fine since
@@ -1385,9 +1401,23 @@ int main(int argc, char **argv)
 
     sai_object_id_t switch_id = SAI_NULL_OBJECT_ID;
 
-    EXIT_ON_ERROR(sai_metadata_sai_switch_api->set_switch_attribute(switch_id, &attr));
+    if (g_inspectAsic)
+    {
+        attr.id = SAI_REDIS_SWITCH_ATTR_NOTIFY_SYNCD;
+        attr.value.s32 = SAI_REDIS_NOTIFY_SYNCD_INSPECT_ASIC;
+        EXIT_ON_ERROR(sai_metadata_sai_switch_api->set_switch_attribute(switch_id, &attr));
+    }
 
-    int exitcode = replay(argc, argv);
+    int exitcode = 0;
+    if (argc > 0)
+    {
+        attr.id = SAI_REDIS_SWITCH_ATTR_USE_TEMP_VIEW;
+        attr.value.booldata = g_useTempView;
+
+        EXIT_ON_ERROR(sai_metadata_sai_switch_api->set_switch_attribute(switch_id, &attr));
+
+        exitcode = replay(argc, argv);
+    }
 
     sai_api_uninitialize();
 
