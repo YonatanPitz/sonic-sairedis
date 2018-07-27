@@ -4658,7 +4658,7 @@ sai_status_t meta_sai_get_stats_oid(
 DECLARE_META_GET_STATS_OID(port);
 DECLARE_META_GET_STATS_OID(port_pool);
 DECLARE_META_GET_STATS_OID(queue);
-DECLARE_META_GET_STATS_OID(bmtor);
+DECLARE_META_GET_STATS_OID(table_vhost_entry);
 DECLARE_META_GET_STATS_OID(ingress_priority_group);
 DECLARE_META_GET_STATS_OID(tunnel);
 

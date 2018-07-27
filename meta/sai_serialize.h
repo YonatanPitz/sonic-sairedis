@@ -78,8 +78,8 @@ std::string sai_serialize_port_pool_stat(
 std::string sai_serialize_queue_stat(
         _In_ const sai_queue_stat_t counter);
 
-std::string sai_serialize_bmtor_stat(
-        _In_ const sai_bmtor_stat_t counter);
+std::string sai_serialize_table_vhost_entry_stat(
+        _In_ const sai_table_vhost_entry_stat_t counter);
 
 std::string sai_serialize_ingress_priority_group_stat(
         _In_ const sai_ingress_priority_group_stat_t counter);
@@ -238,9 +238,9 @@ void sai_deserialize_queue_stat(
         _In_ const std::string& s,
         _Out_ sai_queue_stat_t& stat);
 
-void sai_deserialize_bmtor_stat(
+void sai_deserialize_table_vhost_entry_stat(
         _In_ const std::string& s,
-        _Out_ sai_bmtor_stat_t& stat);
+        _Out_ sai_table_vhost_entry_stat_t& stat);
 
 void sai_deserialize_ingress_priority_group_stat(
         _In_ const std::string& s,
