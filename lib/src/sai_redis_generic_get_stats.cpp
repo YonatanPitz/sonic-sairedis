@@ -69,10 +69,10 @@ struct stat_traits<sai_queue_stat_t>
 };
 
 template <>
-struct stat_traits<sai_bmtor_stat_t>
+struct stat_traits<sai_table_vhost_entry_stat_t>
 {
-    typedef std::string (*serialize_stat)(sai_bmtor_stat_t);
-    static constexpr serialize_stat serialize_stat_fn = sai_serialize_bmtor_stat;
+    typedef std::string (*serialize_stat)(sai_table_vhost_entry_stat_t);
+    static constexpr serialize_stat serialize_stat_fn = sai_serialize_table_vhost_entry_stat;
 };
 
 template <>
@@ -234,6 +234,6 @@ sai_status_t redis_generic_get_stats(
 DECLARE_REDIS_GENERIC_GET_STATS(port);
 DECLARE_REDIS_GENERIC_GET_STATS(port_pool);
 DECLARE_REDIS_GENERIC_GET_STATS(queue);
-DECLARE_REDIS_GENERIC_GET_STATS(bmtor);
+DECLARE_REDIS_GENERIC_GET_STATS(table_vhost_entry);
 DECLARE_REDIS_GENERIC_GET_STATS(ingress_priority_group);
 DECLARE_REDIS_GENERIC_GET_STATS(tunnel);

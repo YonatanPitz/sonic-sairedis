@@ -2844,6 +2844,15 @@ void sai_deserialize_free_queue_deadlock_ntf(
     delete[] queue_deadlock;
 }
 
+void sai_deserialize_table_vhost_entry_stat(
+        _In_ const std::string& s,
+        _Out_ sai_table_vhost_entry_stat_t& stat)
+{
+    SWSS_LOG_ENTER();
+
+    sai_deserialize_enum(s, &sai_metadata_enum_sai_table_vhost_entry_stat_t, (int32_t&)stat);
+}
+
 void sai_deserialize_port_stat(
         _In_ const std::string& s,
         _Out_ sai_port_stat_t& stat)

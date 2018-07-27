@@ -1836,12 +1836,12 @@ sai_status_t processGetStatsEvent(
                     sai_deserialize_ingress_priority_group_stat);
             break;
         case SAI_OBJECT_TYPE_TABLE_VHOST_ENTRY:
-            status = getStatsGeneric<sai_bmtor_stat_t>(
+            status = getStatsGeneric<sai_table_vhost_entry_stat_t>(
                     rid,
                     kco,
                     result,
-                    sai_metadata_sai_bmtor_api->get_bmtor_stats,
-                    sai_deserialize_bmtor_stat);
+                    sai_metadata_sai_bmtor_api->get_table_vhost_entry_stats,
+                    sai_deserialize_table_vhost_entry_stat);
             break;
         default:
             SWSS_LOG_ERROR("SAI object type %s not supported", str_object_type.c_str());
